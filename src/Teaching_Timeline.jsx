@@ -1,5 +1,45 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+// Learner Profile Component for the Personalization Track
+function LearnerProfilePanel({ profile }) {
+    return (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 text-white">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h3 className="text-xs font-bold tracking-wider uppercase text-indigo-400">Learner DNA Profile</h3>
+                <span className="text-xs font-mono bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+          Level: {profile.current_difficulty}
+        </span>
+            </div>
+
+            {/* Mastery Progress Bar */}
+            <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs text-gray-400">
+                    <span>Mastery Progress</span>
+                    <span className="text-emerald-400 font-mono">{profile.mastery_score}%</span>
+                </div>
+                <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                    <div
+                        className="bg-emerald-500 h-full transition-all duration-500"
+                        style={{ width: `${profile.mastery_score}%` }}
+                    />
+                </div>
+            </div>
+
+            {/* Identified Weak Spots */}
+            <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-gray-400 font-medium">Identified Weak Spots:</span>
+                <div className="flex flex-wrap gap-1.5">
+                    {profile.weak_spots.map((spot, index) => (
+                        <span key={index} className="px-2 py-0.5 bg-rose-500/10 text-rose-400 text-xs font-mono rounded-md border border-rose-500/20">
+              ⚠️ {spot}
+            </span>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function TeachingTimeline() {
     const bottomRef = useRef(null);
     const [isStreaming, setIsStreaming] = useState(false);
@@ -7,7 +47,14 @@ export default function TeachingTimeline() {
     // Track total blocks received infinitely for the score/tower counters
     const [totalCount, setTotalCount] = useState(1);
 
-    // Visual blocks state (capped at 6 for smooth DOM performance)
+    // Learner profile state tracking personal adaptation over time
+    const [learnerProfile, setLearnerProfile] = useState({
+        current_difficulty: "Beginner",
+        weak_spots: ["Ratio Fractions"],
+        mastery_score: 45
+    });
+
+    // Visual blocks state (capped at 5 for smooth DOM performance)
     const [blocks, setBlocks] = useState([
         {
             id: "block_001",
@@ -27,15 +74,15 @@ export default function TeachingTimeline() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [blocks]);
 
-    // Mock Live Stream Loop with Infinite Score Tracking
+    // Mock Live Stream Loop with Infinite Score Tracking & Adaptive Profile Updates
     useEffect(() => {
         let interval;
         if (isStreaming) {
             interval = setInterval(() => {
                 const sampleData = [
-                    { topic: "Ratio Analysis", text: "Notice how the red token shifts position relative to the blue benchmark." },
-                    { topic: "Market Penetration", text: "This vector calculates our core growth trajectory over the next quarter." },
-                    { topic: "Cost Breakdown", text: "We isolate the variables to optimize performance metrics instantly." }
+                    { topic: "Ratio Analysis", text: "Notice how the red token shifts position relative to the blue benchmark.", weak: "Variable Isolation", scoreAdd: 4, diff: "Intermediate" },
+                    { topic: "Market Penetration", text: "This vector calculates our core growth trajectory over the next quarter.", weak: "Growth Projections", scoreAdd: 6, diff: "Intermediate" },
+                    { topic: "Cost Breakdown", text: "We isolate the variables to optimize performance metrics instantly.", weak: "Cost Scaling", scoreAdd: 5, diff: "Advanced" }
                 ];
                 const randomItem = sampleData[Math.floor(Math.random() * sampleData.length)];
 
@@ -53,10 +100,15 @@ export default function TeachingTimeline() {
                    </svg>`
                 };
 
-                // Increment the absolute counter infinitely
                 setTotalCount(prev => prev + 1);
-                // Keep DOM light by keeping only the last 5 visible blocks
                 setBlocks(prev => [...prev.slice(-5), newBlock]);
+
+                // Dynamically simulate personal profile tracking update over time
+                setLearnerProfile(prev => ({
+                    current_difficulty: randomItem.diff,
+                    weak_spots: Array.from(new Set([...prev.weak_spots, randomItem.weak])).slice(-3),
+                    mastery_score: Math.min(98, prev.mastery_score + randomItem.scoreAdd)
+                }));
             }, 3000);
         }
         return () => clearInterval(interval);
@@ -116,7 +168,7 @@ export default function TeachingTimeline() {
             {/* Left Area: Main Whiteboard Canvas */}
             <div className="flex-1 flex flex-col h-full border-r border-gray-800">
 
-                {/* Header / Gamification Bar (Powered by infinite totalCount) */}
+                {/* Header / Gamification Bar */}
                 <div className="flex justify-between items-center bg-black/80 backdrop-blur-md px-8 py-4 border-b border-gray-800">
                     <h1 className="text-xl text-white font-bold tracking-wide">V2V <span className="text-indigo-500">Co-Pilot</span></h1>
                     <div className="flex gap-4">
@@ -148,12 +200,17 @@ export default function TeachingTimeline() {
                 </div>
             </div>
 
-            {/* Right Sidebar: Live Transcript Ticker & Dev Tools */}
+            {/* Right Sidebar: Learner DNA Profile, Transcript Ticker & Dev Tools */}
             <div className="w-96 bg-gray-900 border-l border-gray-800 flex flex-col h-full">
 
+                {/* Personalization Component Container */}
+                <div className="p-4 border-b border-gray-800">
+                    <LearnerProfilePanel profile={learnerProfile} />
+                </div>
+
                 {/* Transcript Panel Header */}
-                <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
-                    <h3 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                <div className="px-4 py-3 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
+                    <h3 className="text-gray-300 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         Live Transcript
                     </h3>
@@ -161,7 +218,7 @@ export default function TeachingTimeline() {
                 </div>
 
                 {/* Scrollable Transcript List */}
-                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
                     {blocks.map((block) => (
                         <div key={`transcript_${block.id}`} className="bg-gray-800/40 border border-gray-800 rounded-xl p-3 text-sm flex flex-col gap-1">
                             <div className="flex justify-between items-center text-xs text-gray-400 font-mono">
@@ -174,7 +231,7 @@ export default function TeachingTimeline() {
                 </div>
 
                 {/* Dev Tools Footer */}
-                <div className="p-4 bg-gray-950 border-t border-gray-800 flex flex-col gap-3">
+                <div className="p-4 bg-gray-950 border-t border-gray-800 flex flex-col gap-2.5">
                     <h3 className="text-gray-400 text-xs uppercase tracking-wider font-bold">Dev Tools</h3>
                     <button
                         onClick={simulateNewBlock}
