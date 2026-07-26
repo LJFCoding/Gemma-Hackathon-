@@ -1,11 +1,11 @@
 
-/*! V2V Co-Pilot — compiled Tailwind CSS
- * Source: src/input.css + tailwind.config.js
- * Regenerate: cd v2v-ui && npm run build
- */
+       /*! V2V Co-Pilot — compiled Tailwind CSS
+        * Source: src/input.css + tailwind.config.js
+        * Regenerate: cd v2v-ui && npm run build
+        */
 
-/* ========================= Preflight (base reset) ========================= */
-*, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
+       /* ========================= Preflight (base reset) ========================= */
+   *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
 ::before, ::after { --tw-content: ''; }
 html {
     line-height: 1.5;
