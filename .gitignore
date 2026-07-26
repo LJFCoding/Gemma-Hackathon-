@@ -1,40 +1,4 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-/dist
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# CRITICAL: API KEYS AND SECRETS
 .env
 
-# npm logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# IntelliJ (Your IDE)
-.idea/
-*.iml
-*.iws
-out/
 
-# VS Code (Your Team's IDE)
-.vscode/
-*.code-workspace
-
-# OS Files
-.DS_Store
-Thumbs.db
