@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>V2V Voice Assistant</title>
+  <link rel="stylesheet" href="/static/tailwind.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+  <div class="silk-bg" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="app-shell">
+
+    <header class="topbar">
+      <h1 class="brand">V2V</h1>
+      <nav class="control-pill" aria-label="Assistant controls">
+        <span class="waveform" id="waveform" role="img" aria-label="Microphone level">
+          <i class="waveform__bar"></i><i class="waveform__bar"></i><i class="waveform__bar"></i>
+          <i class="waveform__bar"></i><i class="waveform__bar"></i><i class="waveform__bar"></i>
+          <i class="waveform__bar"></i><i class="waveform__bar"></i><i class="waveform__bar"></i>
+          <i class="waveform__bar"></i><i class="waveform__bar"></i><i class="waveform__bar"></i>
+        </span>
+        <button class="pill-btn" id="muteBtn" type="button"
+                aria-pressed="false" aria-label="Mute spoken replies" title="Mute spoken replies">
+          <svg class="pill-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M16 9a5 5 0 0 1 0 6"/>
+          </svg>
+        </button>
+        <button class="pill-btn" id="clearBtn" type="button" aria-label="Clear conversation" title="Clear conversation">
+          <svg class="pill-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+          </svg>
+        </button>
+      </nav>
+      <span aria-hidden="true"></span>
+    </header>
+
+    <main class="assistant">
+      <span class="status-chip">
+        <span class="status-chip__dot" id="statusDot"></span>
+        <span id="statusText">Checking Gemma…</span>
+      </span>
+
+      <section class="chat" id="chat" aria-live="polite" aria-label="Conversation">
+        <div class="bubble bubble--bot">
+          Hi, I'm your V2V voice assistant. Press the mic and start talking.
+        </div>
+      </section>
+
+      <button class="talk" id="talkBtn" type="button"
+              aria-pressed="false" aria-label="Start listening" title="Press to talk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/>
+        </svg>
+      </button>
+      <p class="talk-hint" id="hint">Press the mic, or hit <kbd>Space</kbd> to talk</p>
+    </main>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const chat      = document.getElementById('chat');
+    const talkBtn   = document.getElementById('talkBtn');
+    const muteBtn   = document.getElementById('muteBtn');
+    const clearBtn  = document.getElementById('clearBtn');
+    const waveform  = document.getElementById('waveform');
+    const hint      = document.getElementById('hint');
+    const statusDot = document.getElementById('statusDot');
+    const statusText= document.getElementById('statusText');
+
+    let history   = [];       // [{role, content}] sent to Gemma for context
+    let listening = false;
+    let muted     = false;
+    let busy      = false;
+
+    waveform.classList.add('is-paused');
+
+    /* ---------- UI helpers ---------- */
+    function bubble(text, kind) {
+      const el = document.createElement('div');
+      el.className = 'bubble bubble--' + kind;
+      el.textContent = text;              // textContent → no HTML injection
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+      return el;
+    }
+
+    function typingBubble() {
+      const el = document.createElement('div');
+      el.className = 'bubble bubble--bot typing';
+      el.innerHTML = '<span></span><span></span><span></span>';
+      el.setAttribute('aria-label', 'Assistant is thinking');
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+      return el;
+    }
+
+    function setStatus(text, state) {
+      statusText.textContent = text;
+      statusDot.classList.toggle('is-ready', state === 'ready');
+      statusDot.classList.toggle('is-error', state === 'error');
+    }
+
+    /* ---------- 1. Speech recognition (browser STT) ---------- */
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
+    if (!SR) {
+      talkBtn.disabled = true;
+      hint.textContent = 'Speech recognition needs Chrome or Edge. You can still type below.';
+      addTextFallback();
+    } else {
+      recognition = new SR();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        listening = true;
+        talkBtn.classList.add('is-listening');
+        talkBtn.setAttribute('aria-pressed', 'true');
+        talkBtn.setAttribute('aria-label', 'Stop listening');
+        waveform.classList.remove('is-paused');
+        hint.textContent = 'Listening… speak now';
+      };
+
+      recognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript.trim();
+        if (transcript) send(transcript);
+      };
+
+      recognition.onerror = (e) => {
+        const msg = e.error === 'not-allowed'
+          ? 'Microphone permission denied. Allow mic access and try again.'
+          : e.error === 'no-speech'
+          ? "Didn't catch that — try again."
+          : 'Speech error: ' + e.error;
+        hint.textContent = msg;
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        talkBtn.classList.remove('is-listening');
+        talkBtn.setAttribute('aria-pressed', 'false');
+        talkBtn.setAttribute('aria-label', 'Start listening');
+        waveform.classList.add('is-paused');
+        if (!busy) hint.textContent = 'Press the mic, or hit Space to talk';
+      };
+    }
+
+    function toggleListening() {
+      if (!recognition || busy) return;
+      listening ? recognition.stop() : recognition.start();
+    }
+
+    talkBtn.addEventListener('click', toggleListening);
+
+    // Space to talk (ignored while typing in the fallback box)
+    document.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      if (e.target.matches('input, textarea')) return;
+      e.preventDefault();
+      toggleListening();
+    });
+
+    /* ---------- 2. Ask Gemma ---------- */
+    async function send(text) {
+      bubble(text, 'user');
+      busy = true;
+      talkBtn.disabled = true;
+      hint.textContent = 'Thinking…';
+      const thinking = typingBubble();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, history: history.slice(-10) }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        thinking.remove();
+
+        if (!res.ok) {
+          bubble(data.detail || `Request failed (${res.status})`, 'error');
+        } else {
+          bubble(data.reply, 'bot');
+          history.push({ role: 'user', content: text });
+          history.push({ role: 'assistant', content: data.reply });
+          speak(data.reply);
+        }
+      } catch (err) {
+        thinking.remove();
+        bubble('Could not reach the server. Is uvicorn running?', 'error');
+      } finally {
+        busy = false;
+        talkBtn.disabled = false;
+        hint.textContent = 'Press the mic, or hit Space to talk';
+      }
+    }
+
+    /* ---------- 3. Speak the reply (browser TTS) ---------- */
+    function speak(text) {
+      if (muted || !window.speechSynthesis) return;
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      speechSynthesis.speak(u);
+    }
+
+    muteBtn.addEventListener('click', () => {
+      muted = !muted;
+      if (muted) speechSynthesis.cancel();
+      muteBtn.setAttribute('aria-pressed', String(muted));
+      muteBtn.setAttribute('aria-label', muted ? 'Unmute spoken replies' : 'Mute spoken replies');
+      muteBtn.style.opacity = muted ? '0.45' : '1';
+    });
+
+    clearBtn.addEventListener('click', () => {
+      speechSynthesis.cancel();
+      history = [];
+      chat.innerHTML = '';
+      bubble('Conversation cleared. Press the mic to start again.', 'bot');
+    });
+
+    /* ---------- 4. Typed fallback when STT is unavailable ---------- */
+    function addTextFallback() {
+      const form = document.createElement('form');
+      form.className = 'flex gap-2';
+      form.innerHTML =
+        '<input class="flex-1 rounded-full border border-white/15 bg-white/10 px-4 py-3 text-slate-100 placeholder:text-slate-400" ' +
+        'placeholder="Type a message…" aria-label="Message" />' +
+        '<button class="rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white">Send</button>';
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = form.querySelector('input');
+        const v = input.value.trim();
+        if (v && !busy) { input.value = ''; send(v); }
+      });
+      document.querySelector('.assistant').appendChild(form);
+    }
+
+    /* ---------- 5. Health check ---------- */
+    (async () => {
+      try {
+        const r = await fetch('/api/health');
+        const h = await r.json();
+        if (h.ready) {
+          setStatus(`Gemma ready · ${h.model} via ${h.provider}`, 'ready');
+        } else {
+          setStatus(h.detail || 'Gemma not configured', 'error');
+          bubble(h.detail + '\n\nVoice input still works — replies need a model.', 'error');
+        }
+      } catch {
+        setStatus('Backend unreachable', 'error');
+      }
+    })();
+  })();
+  </script>
+</body>
+</html>
