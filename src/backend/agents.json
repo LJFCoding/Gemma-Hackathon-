@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "SVG-Generator",
+      "model": "models/gemini-3.6-flash",
+      "description": "Generates clean, 500x300 light-mode SVG vector diagrams for Scottish Nat 5 Maths revision.",
+      "goal": "Generate a single raw SVG element from the prompt, using a 500x300 canvas and no templates or wrapper JSON.",
+      "canvas": {
+        "width": 500,
+        "height": 300,
+        "theme": "light"
+      },
+      "system_instruction": "Generate one complete valid raw SVG element only. It must start with <svg and end with </svg>. Use a 500x300 canvas with a white background and dark border. Render the diagram directly from the prompt. Do not use templates, helper sketches, JSON wrappers, markdown, code fences, explanations, invented captions, or extra text. Only include labels, titles, and annotations explicitly requested by the prompt. Keep the SVG compact, self-contained, light-mode, simple, and valid XML. Make it a single-line or near-single-line SVG with minimal whitespace and only essential elements so the entire result fits comfortably in one response. Use only the shapes and text needed for the diagram, avoid decorative extras, and place labels and geometry to avoid overlap.",
+      "config": {
+        "temperature": 0.0,
+        "top_p": 0.2,
+        "top_k": 1,
+        "max_output_tokens": 2048,
+        "response_mime_type": "text/plain",
+        "thinking_level": "off"
+      }
+    }
+  ]
+}
